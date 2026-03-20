@@ -1,18 +1,18 @@
-import React, { useState, useRef } from 'react';
+import { useRouter } from "expo-router";
+import React, { useRef, useState } from "react";
 import {
-  View,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+  View,
+} from "react-native";
 
 export default function OtpScreen() {
   const router = useRouter();
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputs = useRef<(TextInput | null)[]>([]);
 
   const handleChange = (text: string, index: number) => {
@@ -26,7 +26,14 @@ export default function OtpScreen() {
     if (!text && index > 0) inputs.current[index - 1]?.focus();
   };
 
-  const isFilled = otp.every((d) => d !== '');
+  const isFilled = otp.every((d) => d !== "");
+
+  const handleVerify = () => {
+    // Fake OTP verification - accept any code
+    if (isFilled) {
+      router.push("/home/Home");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -54,7 +61,7 @@ export default function OtpScreen() {
               value={digit}
               onChangeText={(text) => handleChange(text, i)}
               onKeyPress={({ nativeEvent }) => {
-                if (nativeEvent.key === 'Backspace') handleBackspace(digit, i);
+                if (nativeEvent.key === "Backspace") handleBackspace(digit, i);
               }}
             />
           ))}
@@ -66,7 +73,8 @@ export default function OtpScreen() {
 
         <TouchableOpacity
           style={[styles.button, !isFilled && styles.buttonDisabled]}
-          onPress={() => router.push('/auth/personal-info')}
+          // onPress={() => router.push('/auth/personal-info')}
+          onPress={handleVerify}
           disabled={!isFilled}
           activeOpacity={0.85}
         >
@@ -80,41 +88,46 @@ export default function OtpScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 32,
   },
-  step: { fontSize: 13, color: '#8E8E93', marginBottom: 20 },
+  step: { fontSize: 13, color: "#8E8E93", marginBottom: 20 },
   iconWrapper: { marginBottom: 24 },
   icon: { fontSize: 64 },
-  title: { fontSize: 20, fontWeight: '600', color: '#1C1C1E', marginBottom: 8 },
-  subtitle: { fontSize: 13, color: '#8E8E93', marginBottom: 28 },
-  otpRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  title: { fontSize: 20, fontWeight: "600", color: "#1C1C1E", marginBottom: 8 },
+  subtitle: { fontSize: 13, color: "#8E8E93", marginBottom: 28 },
+  otpRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
   otpBox: {
     width: 44,
     height: 52,
     borderWidth: 1.5,
-    borderColor: '#D1D1D6',
+    borderColor: "#D1D1D6",
     borderRadius: 8,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 20,
-    fontWeight: '600',
-    color: '#1C1C1E',
+    fontWeight: "600",
+    color: "#1C1C1E",
   },
-  otpBoxFilled: { borderColor: '#2196F3' },
+  otpBoxFilled: { borderColor: "#2196F3" },
   resendWrapper: { marginBottom: 28 },
-  resendText: { fontSize: 13, color: '#2196F3', fontWeight: '500' },
+  resendText: { fontSize: 13, color: "#2196F3", fontWeight: "500" },
   button: {
-    width: '100%',
-    backgroundColor: '#2196F3',
+    width: "100%",
+    backgroundColor: "#2196F3",
     borderRadius: 10,
     paddingVertical: 15,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  buttonDisabled: { backgroundColor: '#90CAF9' },
-  buttonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
-  versionText: { fontSize: 12, color: '#8E8E93', textAlign: 'center', paddingBottom: 24 },
+  buttonDisabled: { backgroundColor: "#90CAF9" },
+  buttonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
+  versionText: {
+    fontSize: 12,
+    color: "#8E8E93",
+    textAlign: "center",
+    paddingBottom: 24,
+  },
 });
