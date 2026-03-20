@@ -32,7 +32,7 @@ export default function ScanFaceScreen() {
 
         <PrimaryButton
           label="Continue"
-          onPress={() => router.replace('/home')}
+          onPress={() => router.replace('/home/Home')}
         />
       </View>
 
