@@ -1,11 +1,19 @@
 import { AppIcon } from "@/components/common/AppIcon";
 import { AppText } from "@/components/common/AppText";
+import {
+  ELDERLY_FONT_SCALE,
+  ELDERLY_ICON_SCALE,
+  fs,
+  s,
+  vs,
+} from "@/constants/layout";
 import { useAppContext } from "@/context/AppContext";
-import { s, vs, fs, ELDERLY_FONT_SCALE, ELDERLY_ICON_SCALE } from "@/constants/layout";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { sendChatMessage, ChatMessage } from "@/services/chatService";
 import React, { useRef, useState, useCallback } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -17,16 +25,14 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
   Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
 } from "react-native-reanimated";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Message {
@@ -81,11 +87,13 @@ export default function ChatbotScreen() {
 
   const welcomeStyle = useAnimatedStyle(() => ({
     opacity: welcomeFade.value,
-    pointerEvents: welcomeFade.value < 0.1 ? "none" as const : "auto" as const,
+    pointerEvents:
+      welcomeFade.value < 0.1 ? ("none" as const) : ("auto" as const),
   }));
   const cleanHeaderAnimStyle = useAnimatedStyle(() => ({
     opacity: cleanHeaderOpacity.value,
-    pointerEvents: cleanHeaderOpacity.value < 0.1 ? "none" as const : "auto" as const,
+    pointerEvents:
+      cleanHeaderOpacity.value < 0.1 ? ("none" as const) : ("auto" as const),
   }));
   const gradientHeaderAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: gradientSlide.value }],
@@ -100,13 +108,38 @@ export default function ChatbotScreen() {
 
   const triggerTransition = useCallback(() => {
     setChatStarted(true);
-    welcomeFade.value = withTiming(0, { duration: ANIM_DURATION * 0.55, easing: EASE });
-    cleanHeaderOpacity.value = withTiming(0, { duration: ANIM_DURATION * 0.5, easing: EASE });
-    inputTranslateY.value = withTiming(0, { duration: ANIM_DURATION * 0.7, easing: EASE });
-    gradientOpacity.value = withDelay(ANIM_DURATION * 0.25, withTiming(1, { duration: ANIM_DURATION * 0.6, easing: EASE }));
-    gradientSlide.value = withDelay(ANIM_DURATION * 0.25, withTiming(0, { duration: ANIM_DURATION * 0.6, easing: EASE }));
-    chatFade.value = withDelay(ANIM_DURATION * 0.45, withTiming(1, { duration: ANIM_DURATION * 0.55, easing: EASE }));
-  }, [welcomeFade, cleanHeaderOpacity, inputTranslateY, gradientOpacity, gradientSlide, chatFade]);
+    welcomeFade.value = withTiming(0, {
+      duration: ANIM_DURATION * 0.55,
+      easing: EASE,
+    });
+    cleanHeaderOpacity.value = withTiming(0, {
+      duration: ANIM_DURATION * 0.5,
+      easing: EASE,
+    });
+    inputTranslateY.value = withTiming(0, {
+      duration: ANIM_DURATION * 0.7,
+      easing: EASE,
+    });
+    gradientOpacity.value = withDelay(
+      ANIM_DURATION * 0.25,
+      withTiming(1, { duration: ANIM_DURATION * 0.6, easing: EASE }),
+    );
+    gradientSlide.value = withDelay(
+      ANIM_DURATION * 0.25,
+      withTiming(0, { duration: ANIM_DURATION * 0.6, easing: EASE }),
+    );
+    chatFade.value = withDelay(
+      ANIM_DURATION * 0.45,
+      withTiming(1, { duration: ANIM_DURATION * 0.55, easing: EASE }),
+    );
+  }, [
+    welcomeFade,
+    cleanHeaderOpacity,
+    inputTranslateY,
+    gradientOpacity,
+    gradientSlide,
+    chatFade,
+  ]);
 
   const addBotResponse = useCallback(async (userText: string) => {
     setIsTyping(true);
@@ -129,7 +162,10 @@ export default function ChatbotScreen() {
     (text?: string) => {
       const msg = (text ?? inputText).trim();
       if (!msg || isTyping) return;
-      setMessages((prev) => [...prev, { id: `user-${Date.now()}`, text: msg, sender: "user" }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: `user-${Date.now()}`, text: msg, sender: "user" },
+      ]);
       setInputText("");
       addBotResponse(msg);
       if (!firstSend.current) {
@@ -137,7 +173,7 @@ export default function ChatbotScreen() {
         triggerTransition();
       }
     },
-    [inputText, isTyping, addBotResponse, triggerTransition]
+    [inputText, isTyping, addBotResponse, triggerTransition],
   );
 
   // ─── Shared sub-components ───
@@ -147,18 +183,54 @@ export default function ChatbotScreen() {
     return (
       <View style={[styles.messageRow, isBot ? styles.botRow : styles.userRow]}>
         {isBot && (
-          <View style={[styles.avatar, { backgroundColor: "#FFF", borderColor: colors.border, width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
-            <Image source={require("@/assets/images/logo_small.png")} style={{ width: avatarImgSize, height: avatarImgSize, resizeMode: "cover" }} />
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: "#FFF",
+                borderColor: colors.border,
+                width: avatarSize,
+                height: avatarSize,
+                borderRadius: avatarSize / 2,
+              },
+            ]}
+          >
+            <Image
+              source={require("@/assets/images/logo_small.png")}
+              style={{
+                width: avatarImgSize,
+                height: avatarImgSize,
+                resizeMode: "cover",
+              }}
+            />
           </View>
         )}
         <View
           style={[
             styles.bubble,
-            { maxWidth: elderlyMode ? "90%" : "78%", paddingHorizontal: s(elderlyMode ? 16 : 14), paddingVertical: vs(elderlyMode ? 14 : 10) },
-            isBot ? { backgroundColor: colors.backgroundGrouped, borderBottomLeftRadius: s(4) } : { backgroundColor: colors.primary, borderBottomRightRadius: s(4) },
+            {
+              maxWidth: elderlyMode ? "90%" : "78%",
+              paddingHorizontal: s(elderlyMode ? 16 : 14),
+              paddingVertical: vs(elderlyMode ? 14 : 10),
+            },
+            isBot
+              ? {
+                  backgroundColor: colors.backgroundGrouped,
+                  borderBottomLeftRadius: s(4),
+                }
+              : {
+                  backgroundColor: colors.primary,
+                  borderBottomRightRadius: s(4),
+                },
           ]}
         >
-          <AppText size={14} style={{ color: isBot ? colors.textPrimary : "#FFF", lineHeight: eLineHeight(14) }}>
+          <AppText
+            size={14}
+            style={{
+              color: isBot ? colors.textPrimary : "#FFF",
+              lineHeight: eLineHeight(14),
+            }}
+          >
             {item.text}
           </AppText>
         </View>
@@ -168,11 +240,42 @@ export default function ChatbotScreen() {
 
   const renderTypingIndicator = () => (
     <View style={[styles.messageRow, styles.botRow]}>
-      <View style={[styles.avatar, { backgroundColor: "#FFF", borderColor: colors.border, width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
-        <Image source={require("@/assets/images/logo_small.png")} style={{ width: avatarImgSize, height: avatarImgSize, resizeMode: "cover" }} />
+      <View
+        style={[
+          styles.avatar,
+          {
+            backgroundColor: "#FFF",
+            borderColor: colors.border,
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: avatarSize / 2,
+          },
+        ]}
+      >
+        <Image
+          source={require("@/assets/images/logo_small.png")}
+          style={{
+            width: avatarImgSize,
+            height: avatarImgSize,
+            resizeMode: "cover",
+          }}
+        />
       </View>
-      <View style={[styles.bubble, { backgroundColor: colors.backgroundGrouped, borderBottomLeftRadius: s(4), paddingHorizontal: s(20), paddingVertical: vs(elderlyMode ? 18 : 14) }]}>
-        <ActivityIndicator size={elderlyMode ? "large" : "small"} color={colors.textSecondary} />
+      <View
+        style={[
+          styles.bubble,
+          {
+            backgroundColor: colors.backgroundGrouped,
+            borderBottomLeftRadius: s(4),
+            paddingHorizontal: s(20),
+            paddingVertical: vs(elderlyMode ? 18 : 14),
+          },
+        ]}
+      >
+        <ActivityIndicator
+          size={elderlyMode ? "large" : "small"}
+          color={colors.textSecondary}
+        />
       </View>
     </View>
   );
@@ -182,11 +285,23 @@ export default function ChatbotScreen() {
       <View
         style={[
           styles.inputWrapper,
-          { backgroundColor: colors.backgroundGrouped, borderColor: colors.border, minHeight: inputMinHeight, borderRadius: s(elderlyMode ? 28 : 24) },
+          {
+            backgroundColor: colors.backgroundGrouped,
+            borderColor: colors.border,
+            minHeight: inputMinHeight,
+            borderRadius: s(elderlyMode ? 28 : 24),
+          },
         ]}
       >
         <TextInput
-          style={[styles.textInput, { color: colors.textPrimary, fontSize: eFontSize(15), lineHeight: eLineHeight(15) }]}
+          style={[
+            styles.textInput,
+            {
+              color: colors.textPrimary,
+              fontSize: eFontSize(15),
+              lineHeight: eLineHeight(15),
+            },
+          ]}
           placeholder="Message Digital Assistant..."
           placeholderTextColor={colors.textPlaceholder}
           value={inputText}
@@ -206,7 +321,10 @@ export default function ChatbotScreen() {
               width: sendBtnSize,
               height: sendBtnSize,
               borderRadius: sendBtnSize / 2,
-              backgroundColor: inputText.trim() && !isTyping ? colors.primary : colors.primary + "30",
+              backgroundColor:
+                inputText.trim() && !isTyping
+                  ? colors.primary
+                  : colors.primary + "30",
               transform: [{ scale: pressed ? 0.9 : 1 }],
             },
           ]}
@@ -226,13 +344,22 @@ export default function ChatbotScreen() {
     };
 
     if (animated) {
-      return <Animated.View style={[barStyle, inputAnimStyle]}>{inner}</Animated.View>;
+      return (
+        <Animated.View style={[barStyle, inputAnimStyle]}>
+          {inner}
+        </Animated.View>
+      );
     }
     return <View style={barStyle}>{inner}</View>;
   };
 
   const renderChips = () => (
-    <View style={[styles.chipsContainer, elderlyMode && styles.chipsContainerElderly]}>
+    <View
+      style={[
+        styles.chipsContainer,
+        elderlyMode && styles.chipsContainerElderly,
+      ]}
+    >
       {QUICK_ACTIONS.map((action) => (
         <TouchableOpacity
           key={action.id}
@@ -250,7 +377,10 @@ export default function ChatbotScreen() {
           activeOpacity={0.7}
         >
           <AppIcon name={action.icon} size={15} color={colors.primary} />
-          <AppText size={13} style={{ color: colors.textPrimary, fontWeight: "500" }}>
+          <AppText
+            size={13}
+            style={{ color: colors.textPrimary, fontWeight: "500" }}
+          >
             {action.label}
           </AppText>
         </TouchableOpacity>
@@ -260,17 +390,48 @@ export default function ChatbotScreen() {
 
   const welcomeHeader = () => (
     <View style={styles.welcomeTop}>
-      <View style={[styles.welcomeLogo, { backgroundColor: colors.primary + "12", width: elderlyMode ? 80 : 72, height: elderlyMode ? 80 : 72, borderRadius: elderlyMode ? 40 : 36 }]}>
-        <Image source={require("@/assets/images/logo_small.png")} style={{ width: elderlyMode ? 50 : 44, height: elderlyMode ? 50 : 44, resizeMode: "cover" }} />
+      <View
+        style={[
+          styles.welcomeLogo,
+          {
+            backgroundColor: colors.primary + "12",
+            width: elderlyMode ? 80 : 72,
+            height: elderlyMode ? 80 : 72,
+            borderRadius: elderlyMode ? 40 : 36,
+          },
+        ]}
+      >
+        <Image
+          source={require("@/assets/images/logo_small.png")}
+          style={{
+            width: elderlyMode ? 50 : 44,
+            height: elderlyMode ? 50 : 44,
+            resizeMode: "cover",
+          }}
+        />
       </View>
-      <AppText size={elderlyMode ? 20 : 22} style={{ fontWeight: "700", color: colors.textPrimary, textAlign: "center" }}>
+      <AppText
+        size={elderlyMode ? 20 : 22}
+        style={{
+          fontWeight: "700",
+          color: colors.textPrimary,
+          textAlign: "center",
+        }}
+      >
         How can I help you?
       </AppText>
       <AppText
         size={elderlyMode ? 13 : 14}
-        style={{ color: colors.textSecondary, textAlign: "center", lineHeight: eLineHeight(elderlyMode ? 13 : 14), marginTop: vs(8), paddingHorizontal: s(8) }}
+        style={{
+          color: colors.textSecondary,
+          textAlign: "center",
+          lineHeight: eLineHeight(elderlyMode ? 13 : 14),
+          marginTop: vs(8),
+          paddingHorizontal: s(8),
+        }}
       >
-        Ask about government services, documents, queues, or try a suggestion below.
+        Ask about government services, documents, queues, or try a suggestion
+        below.
       </AppText>
     </View>
   );
@@ -281,14 +442,28 @@ export default function ChatbotScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ===== Clean Header (welcome) ===== */}
       <Animated.View
-        style={[styles.cleanHeader, { paddingTop: insets.top + vs(8), borderBottomColor: colors.border }, cleanHeaderAnimStyle]}
+        style={[
+          styles.cleanHeader,
+          { paddingTop: insets.top + vs(8), borderBottomColor: colors.border },
+          cleanHeaderAnimStyle,
+        ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.headerBtn}
+          activeOpacity={0.7}
+        >
           <AppIcon name="chevron.left" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.cleanHeaderTitle}>
-          <Image source={require("@/assets/images/logo_small.png")} style={styles.cleanHeaderLogo} />
-          <AppText size={17} style={{ fontWeight: "700", color: colors.textPrimary }}>
+          <Image
+            source={require("@/assets/images/logo_small.png")}
+            style={styles.cleanHeaderLogo}
+          />
+          <AppText
+            size={17}
+            style={{ fontWeight: "700", color: colors.textPrimary }}
+          >
             Digital Assistant
           </AppText>
         </View>
@@ -296,22 +471,45 @@ export default function ChatbotScreen() {
       </Animated.View>
 
       {/* ===== Gradient Header (chat) — slides down ===== */}
-      <Animated.View style={[styles.gradientHeaderOuter, gradientHeaderAnimStyle]} pointerEvents={chatStarted ? "auto" : "none"}>
-        <LinearGradient colors={[colors.primary, colors.primary + "CC", colors.primary + "44", "transparent"]} locations={[0, 0.45, 0.78, 1]} style={StyleSheet.absoluteFill} />
+      <Animated.View
+        style={[styles.gradientHeaderOuter, gradientHeaderAnimStyle]}
+        pointerEvents={chatStarted ? "auto" : "none"}
+      >
+        <LinearGradient
+          colors={[
+            colors.primary,
+            colors.primary + "CC",
+            colors.primary + "44",
+            "transparent",
+          ]}
+          locations={[0, 0.45, 0.78, 1]}
+          style={StyleSheet.absoluteFill}
+        />
         <View style={{ height: insets.top + vs(16) }} />
         <View style={styles.gradientHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+          >
             <AppIcon name="chevron.left" size={22} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.gradientHeaderCenter}>
             <View style={styles.gradientHeaderAvatar}>
-              <Image source={require("@/assets/images/logo_small.png")} style={{ width: 30, height: 30, resizeMode: "cover" }} />
+              <Image
+                source={require("@/assets/images/logo_small.png")}
+                style={{ width: 30, height: 30, resizeMode: "cover" }}
+              />
             </View>
             <View>
-              <AppText size={16} style={{ fontWeight: "700", color: "#FFF" }}>Digital Assistant</AppText>
+              <AppText size={16} style={{ fontWeight: "700", color: "#FFF" }}>
+                Digital Assistant
+              </AppText>
               <View style={styles.onlineRow}>
                 <View style={styles.onlineDot} />
-                <AppText size={11} style={{ color: "rgba(255,255,255,0.8)" }}>Online</AppText>
+                <AppText size={11} style={{ color: "rgba(255,255,255,0.8)" }}>
+                  Online
+                </AppText>
               </View>
             </View>
           </View>
@@ -322,8 +520,11 @@ export default function ChatbotScreen() {
       </Animated.View>
 
       {/* ===== Main content ===== */}
-      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={0}>
-
+      <KeyboardAvoidingView
+        style={styles.flex1}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
         {elderlyMode ? (
           // ── ELDERLY MODE: simple flex layout, scrollable welcome, input always at bottom ──
           <>
@@ -347,10 +548,17 @@ export default function ChatbotScreen() {
                     data={messages}
                     keyExtractor={(item) => item.id}
                     renderItem={renderMessage}
-                    contentContainerStyle={[styles.messagesList, { paddingTop: vs(80) }]}
+                    contentContainerStyle={[
+                      styles.messagesList,
+                      { paddingTop: vs(80) },
+                    ]}
                     showsVerticalScrollIndicator={false}
-                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                    ListFooterComponent={isTyping ? renderTypingIndicator() : null}
+                    onContentSizeChange={() =>
+                      flatListRef.current?.scrollToEnd({ animated: true })
+                    }
+                    ListFooterComponent={
+                      isTyping ? renderTypingIndicator() : null
+                    }
                   />
                 </Animated.View>
               )}
@@ -376,10 +584,17 @@ export default function ChatbotScreen() {
                     data={messages}
                     keyExtractor={(item) => item.id}
                     renderItem={renderMessage}
-                    contentContainerStyle={[styles.messagesList, { paddingTop: vs(80) }]}
+                    contentContainerStyle={[
+                      styles.messagesList,
+                      { paddingTop: vs(80) },
+                    ]}
                     showsVerticalScrollIndicator={false}
-                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                    ListFooterComponent={isTyping ? renderTypingIndicator() : null}
+                    onContentSizeChange={() =>
+                      flatListRef.current?.scrollToEnd({ animated: true })
+                    }
+                    ListFooterComponent={
+                      isTyping ? renderTypingIndicator() : null
+                    }
                   />
                 </Animated.View>
               )}
@@ -387,7 +602,6 @@ export default function ChatbotScreen() {
             {renderInputBar(true)}
           </>
         )}
-
       </KeyboardAvoidingView>
     </View>
   );
@@ -406,19 +620,84 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 5,
   },
-  headerBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
-  cleanHeaderTitle: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: s(8) },
-  cleanHeaderLogo: { width: 28, height: 28, borderRadius: 14, resizeMode: "cover" },
+  headerBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cleanHeaderTitle: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: s(8),
+  },
+  cleanHeaderLogo: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    resizeMode: "cover",
+  },
 
   // Gradient Header
-  gradientHeaderOuter: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, overflow: "visible", paddingBottom: vs(40) },
-  gradientHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: s(16), paddingBottom: vs(4) },
-  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  gradientHeaderCenter: { flex: 1, flexDirection: "row", alignItems: "center", marginLeft: s(8), gap: s(10) },
-  gradientHeaderAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FFF", borderWidth: 1, borderColor: "rgba(255,255,255,0.8)", overflow: "hidden", justifyContent: "center", alignItems: "center" },
-  onlineRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#4CAF50" },
-  headerAction: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
+  gradientHeaderOuter: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    overflow: "visible",
+    paddingBottom: vs(40),
+  },
+  gradientHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: s(16),
+    paddingBottom: vs(4),
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  gradientHeaderCenter: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: s(8),
+    gap: s(10),
+  },
+  gradientHeaderAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.8)",
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  onlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#4CAF50",
+  },
+  headerAction: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
   // Welcome — normal mode (absolute centered)
   welcomeCentered: {
@@ -429,7 +708,11 @@ const styles = StyleSheet.create({
     paddingBottom: vs(80),
   },
   welcomeTop: { alignItems: "center", marginBottom: vs(8) },
-  welcomeLogo: { justifyContent: "center", alignItems: "center", marginBottom: vs(16) },
+  welcomeLogo: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: vs(16),
+  },
 
   // Welcome — elderly mode (scrollable flex)
   elderlyWelcomeContent: {
@@ -440,20 +723,57 @@ const styles = StyleSheet.create({
   },
 
   // Chips
-  chipsContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: s(8) },
+  chipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: s(8),
+  },
   chipsContainerElderly: { flexDirection: "column", gap: vs(10) },
-  chip: { flexDirection: "row", alignItems: "center", gap: s(8), borderRadius: s(20), borderWidth: 1 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: s(8),
+    borderRadius: s(20),
+    borderWidth: 1,
+  },
 
   // Messages
   messagesList: { paddingHorizontal: s(16), paddingBottom: vs(8) },
-  messageRow: { flexDirection: "row", marginBottom: vs(16), alignItems: "flex-start" },
+  messageRow: {
+    flexDirection: "row",
+    marginBottom: vs(16),
+    alignItems: "flex-start",
+  },
   botRow: { justifyContent: "flex-start" },
   userRow: { justifyContent: "flex-end" },
-  avatar: { borderWidth: 1, justifyContent: "center", alignItems: "center", marginRight: s(8), marginTop: vs(2), overflow: "hidden" },
+  avatar: {
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: s(8),
+    marginTop: vs(2),
+    overflow: "hidden",
+  },
   bubble: { borderRadius: s(18) },
 
   // Input
-  inputWrapper: { flexDirection: "row", alignItems: "flex-end", borderWidth: 1, paddingLeft: s(16), paddingRight: s(4), paddingVertical: Platform.OS === "ios" ? vs(6) : vs(2) },
-  textInput: { flex: 1, maxHeight: 120, paddingVertical: Platform.OS === "ios" ? vs(6) : vs(8) },
-  sendBtn: { justifyContent: "center", alignItems: "center", marginBottom: Platform.OS === "ios" ? vs(2) : vs(4) },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    borderWidth: 1,
+    paddingLeft: s(16),
+    paddingRight: s(4),
+    paddingVertical: Platform.OS === "ios" ? vs(6) : vs(2),
+  },
+  textInput: {
+    flex: 1,
+    maxHeight: 120,
+    paddingVertical: Platform.OS === "ios" ? vs(6) : vs(8),
+  },
+  sendBtn: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Platform.OS === "ios" ? vs(2) : vs(4),
+  },
 });
