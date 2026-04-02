@@ -44,7 +44,6 @@ export default function EmailScreen() {
 
       console.log("--- DEBUG: Firestore Success! ID:", userRef.id); // LOG 3
 
-      // Replace your current router.push block with this:
       router.push(`/auth/otp?userId=${userRef.id}`);
     } catch (error: any) {
       console.log("--- DEBUG: Firestore Error! ---", error.message); // LOG 4

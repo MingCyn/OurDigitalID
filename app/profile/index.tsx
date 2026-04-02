@@ -80,10 +80,7 @@ export default function ProfileScreen() {
   return (
     <View
       key={refreshKey}
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top },
-      ]}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <ScrollView
         style={styles.scrollView}
