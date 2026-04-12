@@ -1,0 +1,138 @@
+[
+  {
+    "station_name": "Empangan Machap",
+    "district": "Kluang",
+    "state": "Johor",
+    "latitude": 1.888535,
+    "longitude": 103.27713,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Kg. Sg. Siam",
+    "district": "Kulai",
+    "state": "Johor",
+    "latitude": 1.802187,
+    "longitude": 103.496703,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Klang di Tmn Sri Muda 1",
+    "district": "Petaling",
+    "state": "Selangor",
+    "latitude": 3.0233,
+    "longitude": 101.5385,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Damansara di TTDI Jaya",
+    "district": "Petaling",
+    "state": "Selangor",
+    "latitude": 3.0987,
+    "longitude": 101.5543,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Gombak di Jalan Tun Razak",
+    "district": "Kuala Lumpur",
+    "state": "W.P. Kuala Lumpur",
+    "latitude": 3.1721,
+    "longitude": 101.6989,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Kelantan di Jambatan Guillemard",
+    "district": "Tanah Merah",
+    "state": "Kelantan",
+    "latitude": 5.8364,
+    "longitude": 102.1627,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Pahang di Temerloh",
+    "district": "Temerloh",
+    "state": "Pahang",
+    "latitude": 3.4486,
+    "longitude": 102.4161,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Kuantan di Pasir Kemudi",
+    "district": "Kuantan",
+    "state": "Pahang",
+    "latitude": 3.8765,
+    "longitude": 103.2145,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Perak di Jambatan Iskandar",
+    "district": "Kuala Kangsar",
+    "state": "Perak",
+    "latitude": 4.8169,
+    "longitude": 100.9575,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Kinabatangan di Jambatan Kinabatangan",
+    "district": "Kinabatangan",
+    "state": "Sabah",
+    "latitude": 5.4215,
+    "longitude": 117.8443,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Sarawak di Kuching",
+    "district": "Kuching",
+    "state": "Sarawak",
+    "latitude": 1.5535,
+    "longitude": 110.3416,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Muda di Jambatan Syed Omar",
+    "district": "Baling",
+    "state": "Kedah",
+    "latitude": 5.63,
+    "longitude": 100.8653,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Melaka di Batu Hampar",
+    "district": "Melaka Tengah",
+    "state": "Melaka",
+    "latitude": 2.253,
+    "longitude": 102.247,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Terengganu di Jambatan Kuala Berang",
+    "district": "Hulu Terengganu",
+    "state": "Terengganu",
+    "latitude": 5.0743,
+    "longitude": 103.0118,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Linggi di Pekan Linggi",
+    "district": "Port Dickson",
+    "state": "Negeri Sembilan",
+    "latitude": 2.3965,
+    "longitude": 101.9961,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Perlis di Kangar",
+    "district": "Kangar",
+    "state": "Perlis",
+    "latitude": 6.4414,
+    "longitude": 100.1986,
+    "status": "NORMAL"
+  },
+  {
+    "station_name": "Sg. Pinang di Jalan P.Ramlee",
+    "district": "Timur Laut",
+    "state": "Pulau Pinang",
+    "latitude": 5.4098,
+    "longitude": 100.3155,
+    "status": "NORMAL"
+  }
+]

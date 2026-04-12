@@ -9,3 +9,7 @@ typings/
 node_modules/
 *.local
 .env
+
+# local debug/secret files
+scripts/firebase-debug.log
+scripts/serviceAccountKey.json
