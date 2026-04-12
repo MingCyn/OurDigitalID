@@ -16,7 +16,6 @@ import {
   View,
 } from "react-native";
 import Animated from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
@@ -29,7 +28,7 @@ const newsImageMap: { [key: string]: any } = {
 // --- Fake Data Fetching ----
 
 const fetchLatestNews = async () => {
-  return new Promise<Array<{ id: string; title: string; blurb: string }>>(
+  return new Promise<{ id: string; title: string; blurb: string }[]>(
     (resolve) => {
       setTimeout(() => {
         resolve([
@@ -52,19 +51,16 @@ const fetchLatestNews = async () => {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { colors, elderlyMode, userProfile } = useAppContext();
+  const { colors, userProfile } = useAppContext();
   const { t } = useTranslation();
   const userName = userProfile?.fullName || "";
-  const [news, setNews] = useState<Array<any>>([]);
-  const [displayNews, setDisplayNews] = useState<Array<any>>([]);
+  const [displayNews, setDisplayNews] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const flatListRef = useRef<FlatList>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
 
   useEffect(() => {
     fetchLatestNews().then((data) => {
-      setNews(data);
       const loopedData = Array(500)
         .fill(data)
         .flat()
@@ -80,13 +76,11 @@ export default function HomeScreen() {
     if (displayNews.length === 0) return;
 
     const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => {
-        const nextIndex = (prevIndex + 1) % displayNews.length;
-        flatListRef.current?.scrollToIndex({
-          index: nextIndex,
-          animated: true,
-        });
-        return nextIndex;
+      currentIndexRef.current =
+        (currentIndexRef.current + 1) % displayNews.length;
+      flatListRef.current?.scrollToIndex({
+        index: currentIndexRef.current,
+        animated: true,
       });
     }, 4500);
     return () => clearInterval(interval);
@@ -116,7 +110,8 @@ export default function HomeScreen() {
             size={18}
             style={{ fontWeight: "600", marginBottom: vs(12) }}
           >
-            {t("welcome")}{userName ? `, ${userName}` : ""}!
+            {t("welcome")}
+            {userName ? `, ${userName}` : ""}!
           </AppText>
           <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
         </Animated.View>
@@ -125,7 +120,7 @@ export default function HomeScreen() {
         <Animated.View style={[styles.actionButtonsContainer, actionsAnim]}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: "#FFF3E0" }]}
-            onPress={() => handleActionPress("/GIS.tsx")}
+            onPress={() => handleActionPress("/gis/gis")}
           >
             <AppText
               size={12}
