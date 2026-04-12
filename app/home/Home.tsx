@@ -125,7 +125,7 @@ export default function HomeScreen() {
         <Animated.View style={[styles.actionButtonsContainer, actionsAnim]}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: "#FFF3E0" }]}
-            onPress={() => handleActionPress("/online-queue")}
+            onPress={() => handleActionPress("/GIS.tsx")}
           >
             <AppText
               size={12}
@@ -135,7 +135,7 @@ export default function HomeScreen() {
                 textAlign: "center",
               }}
             >
-              {t("onlineQueuing")}
+              {t("GIS")}
             </AppText>
           </TouchableOpacity>
 
