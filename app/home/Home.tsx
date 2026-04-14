@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Animated from "react-native-reanimated";
 
 // Conditionally import MapView only on native platforms
@@ -494,6 +495,20 @@ export default function HomeScreen() {
     }
   };
 
+  const handleCenterMap = () => {
+    if (mapViewRef.current && userLocation && Platform.OS !== "web") {
+      mapViewRef.current.animateToRegion(
+        {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: 0.03,
+          longitudeDelta: 0.03,
+        },
+        1000,
+      );
+    }
+  };
+
   // Section entrance animations
   const welcomeAnim = useFadeInUp(stagger(0, 120));
   const actionsAnim = useFadeInUp(stagger(1, 120));
@@ -659,12 +674,28 @@ export default function HomeScreen() {
 
         {/* Live Queue Status Section */}
         <Animated.View style={[styles.section, queueAnim]}>
-          <AppText
-            size={16}
-            style={{ fontWeight: "700", marginBottom: vs(12) }}
-          >
-            {t("liveQueue")}
-          </AppText>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: vs(12) }}>
+            <AppText
+              size={16}
+              style={{ fontWeight: "700" }}
+            >
+              {t("liveQueue")}
+            </AppText>
+            <TouchableOpacity
+              onPress={handleCenterMap}
+              disabled={!userLocation || Platform.OS === "web"}
+              style={{
+                padding: 8,
+                opacity: !userLocation || Platform.OS === "web" ? 0.5 : 1,
+              }}
+            >
+              <Ionicons
+                name="locate"
+                size={24}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
           <View
             style={[
               styles.queueContainer,
