@@ -5,7 +5,7 @@ import { useAppContext } from "@/context/AppContext";
 import { stagger, useFadeInUp } from "@/hooks/useAnimations";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
@@ -76,7 +76,6 @@ const getNearbyServiceCenters = (): ServiceCenter[] => [
     hours: "10:00 AM - 6:00 PM",
   },
 
-
   // Transport & Licensing Services
   {
     id: "7",
@@ -120,7 +119,6 @@ const getNearbyServiceCenters = (): ServiceCenter[] => [
     hours: "9:00 AM - 5:00 PM",
   },
 
-
   // Healthcare Services
   {
     id: "17",
@@ -149,7 +147,6 @@ const getNearbyServiceCenters = (): ServiceCenter[] => [
     waiting: Math.floor(Math.random() * 11) + 1,
     hours: "9:00 AM - 5:30 PM",
   },
-
 ];
 
 const getQueueData = (t: any): QueueItem[] => [
@@ -235,7 +232,9 @@ export default function AppointmentPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [ticketCountdown, setTicketCountdown] = useState<number>(0);
   const [showServiceConfirmModal, setShowServiceConfirmModal] = useState(false);
-  const ticketCountdownIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const ticketCountdownIntervalRef = useRef<NodeJS.Timeout | undefined>(
+    undefined,
+  );
   const [nextTicketNumbers, setNextTicketNumbers] = useState<{
     [key: string]: number;
   }>(
@@ -482,10 +481,6 @@ export default function AppointmentPage() {
             setUserTicket(null);
             setSelectedDept(null);
             setTicketCountdown(0);
-            Alert.alert(
-              "Book New Ticket",
-              "Please select a service and get a new ticket.",
-            );
           },
         },
       ],
@@ -708,6 +703,49 @@ export default function AppointmentPage() {
             </AppText>
           </TouchableOpacity>
         </Animated.View>
+
+        {/* Active Ticket Section */}
+        {userTicket && (
+          <Animated.View style={[styles.section, queueAnim]}>
+            <View
+              style={[
+                styles.ticketBannerInline,
+                { backgroundColor: "#4CAF50" },
+              ]}
+            >
+              <View style={styles.ticketBannerContent}>
+                <Ionicons name="checkmark-circle" size={24} color="white" />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <AppText
+                    size={12}
+                    style={{ color: "white", fontWeight: "600" }}
+                  >
+                    ACTIVE TICKET
+                  </AppText>
+                  <AppText
+                    size={16}
+                    style={{ color: "white", fontWeight: "700", marginTop: 2 }}
+                  >
+                    #{userTicket.ticketNumber} • {userTicket.departmentName}
+                  </AppText>
+                  <AppText
+                    size={11}
+                    style={{ color: "rgba(255,255,255,0.8)", marginTop: 2 }}
+                  >
+                    Position: #{getUserQueuePosition()} • Wait: ~
+                    {userTicket.estimatedWaitTime}min
+                  </AppText>
+                </View>
+                <TouchableOpacity
+                  onPress={handleCancelTicket}
+                  style={{ padding: 8 }}
+                >
+                  <Ionicons name="close" size={20} color="white" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        )}
 
         {/* Take a Number Online Section */}
         <Animated.View style={[styles.section, categoryAnim]}>
@@ -959,40 +997,6 @@ export default function AppointmentPage() {
           )}
         </Animated.View>
 
-        {/* Active Ticket Section */}
-        {userTicket && (
-          <Animated.View style={[styles.section, queueAnim]}>
-            <View style={[styles.ticketBannerInline, { backgroundColor: "#4CAF50" }]}>
-              <View style={styles.ticketBannerContent}>
-                <Ionicons name="checkmark-circle" size={24} color="white" />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <AppText size={12} style={{ color: "white", fontWeight: "600" }}>
-                    ACTIVE TICKET
-                  </AppText>
-                  <AppText
-                    size={16}
-                    style={{ color: "white", fontWeight: "700", marginTop: 2 }}
-                  >
-                    #{userTicket.ticketNumber} • {userTicket.departmentName}
-                  </AppText>
-                  <AppText
-                    size={11}
-                    style={{ color: "rgba(255,255,255,0.8)", marginTop: 2 }}
-                  >
-                    Position: #{getUserQueuePosition()} • Wait: ~
-                    {userTicket.estimatedWaitTime}min
-                  </AppText>
-                </View>
-                <TouchableOpacity
-                  onPress={handleCancelTicket}
-                  style={{ padding: 8 }}
-                >
-                  <Ionicons name="close" size={20} color="white" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Animated.View>
-        )}
         <View style={{ height: 80 }} />
       </ScrollView>
 
@@ -1220,7 +1224,8 @@ export default function AppointmentPage() {
                 lineHeight: 20,
               }}
             >
-              Your ticket #{userTicket?.ticketNumber} at {userTicket?.departmentName} is now being called.
+              Your ticket #{userTicket?.ticketNumber} at{" "}
+              {userTicket?.departmentName} is now being called.
             </AppText>
 
             <View
@@ -1235,10 +1240,7 @@ export default function AppointmentPage() {
               >
                 Status
               </AppText>
-              <AppText
-                size={18}
-                style={{ fontWeight: "700", color: "white" }}
-              >
+              <AppText size={18} style={{ fontWeight: "700", color: "white" }}>
                 🔴 CALLED TO COUNTER
               </AppText>
             </View>
@@ -1277,10 +1279,7 @@ export default function AppointmentPage() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: "white" },
-                ]}
+                style={[styles.modalButton, { backgroundColor: "white" }]}
                 onPress={handleServiceContinued}
               >
                 <AppText
