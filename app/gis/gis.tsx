@@ -7,14 +7,14 @@ import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import { collection, getDocs } from "firebase/firestore";
 import { getDistance } from "geolib";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    View,
+  ActivityIndicator,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,6 +32,10 @@ interface FloodStation {
 interface UserCoords {
   latitude: number;
   longitude: number;
+}
+
+interface FloodStationWithDistance extends FloodStation {
+  distanceKm: number;
 }
 
 const DEFAULT_REGION: Region = {
@@ -153,9 +157,35 @@ export default function GISMap() {
   const { colors, addNotification } = useAppContext();
   const [stations, setStations] = useState<FloodStation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<UserCoords | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedStation, setSelectedStation] = useState<FloodStation | null>(
     null,
   );
+  const mapViewRef = useRef<MapView | null>(null);
+
+  useEffect(() => {
+    const getUserLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setLocationError("Location permission denied");
+          return;
+        }
+
+        const position = await Location.getCurrentPositionAsync({});
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      } catch (error) {
+        console.error("Error getting location:", error);
+        setLocationError("Unable to get location");
+      }
+    };
+
+    getUserLocation();
+  }, []);
 
   useEffect(() => {
     const loadStations = async () => {
@@ -190,25 +220,7 @@ export default function GISMap() {
         setSelectedStation(loadedStations[0] ?? null);
 
         await configureAndroidNotificationChannel();
-        const notificationPermissionGranted =
-          await requestNotificationPermission();
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === "granted" && notificationPermissionGranted) {
-          const position = await Location.getCurrentPositionAsync({});
-          await checkFloodProximity(
-            {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            },
-            loadedStations,
-            (stationName, distanceInKm) => {
-              addNotification({
-                type: "alert",
-                message: `${stationName} is at DANGER level and ${distanceInKm.toFixed(1)}km away. Move to higher ground.`,
-              });
-            },
-          );
-        }
+        await requestNotificationPermission();
       } catch (error) {
         console.error("Error loading flood stations:", error);
       } finally {
@@ -217,17 +229,104 @@ export default function GISMap() {
     };
 
     loadStations();
-  }, [addNotification]);
+  }, []);
 
-  const nearbyStations = useMemo(() => {
-    if (!selectedStation) {
+  const nearbyStations = useMemo<FloodStationWithDistance[]>(() => {
+    if (!userLocation) {
       return [];
     }
 
-    return stations.filter(
-      (station) => distanceKm(selectedStation, station) <= 120,
+    const PROXIMITY_RADIUS_KM = 5;
+
+    return stations
+      .map((station) => {
+        const distanceInMeters = getDistance(
+          {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+          },
+          { latitude: station.latitude, longitude: station.longitude },
+        );
+
+        return {
+          ...station,
+          distanceKm: distanceInMeters / 1000,
+        };
+      })
+      .filter((station) => station.distanceKm <= PROXIMITY_RADIUS_KM)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+  }, [stations, userLocation]);
+
+  const nearestStation = nearbyStations[0] ?? null;
+
+  useEffect(() => {
+    if (nearestStation) {
+      setSelectedStation(nearestStation);
+      return;
+    }
+
+    setSelectedStation(stations[0] ?? null);
+  }, [nearestStation, stations]);
+
+  useEffect(() => {
+    const runFloodProximityCheck = async () => {
+      if (!userLocation || stations.length === 0) {
+        return;
+      }
+
+      const notificationPermissionGranted =
+        await requestNotificationPermission();
+
+      if (!notificationPermissionGranted) {
+        return;
+      }
+
+      await checkFloodProximity(
+        userLocation,
+        stations,
+        (stationName, distanceInKm) => {
+          addNotification({
+            type: "alert",
+            message: `${stationName} is at DANGER level and ${distanceInKm.toFixed(1)}km away. Move to higher ground.`,
+          });
+        },
+      );
+    };
+
+    runFloodProximityCheck();
+  }, [addNotification, stations, userLocation]);
+
+  useEffect(() => {
+    if (!userLocation || !mapViewRef.current) {
+      return;
+    }
+
+    mapViewRef.current.animateToRegion(
+      {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.25,
+        longitudeDelta: 0.25,
+      },
+      1000,
     );
-  }, [selectedStation, stations]);
+  }, [userLocation]);
+
+  const getMarkerColorByStatus = (status: string) => {
+    if (status === "DANGER") {
+      return "#D32F2F";
+    }
+
+    if (status === "WARNING") {
+      return "#F57C00";
+    }
+
+    if (status === "NORMAL") {
+      return "#2E7D32";
+    }
+
+    return "#1E88E5";
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -275,16 +374,26 @@ export default function GISMap() {
             ]}
           >
             <MapView
+              ref={mapViewRef}
               style={styles.map}
+              showsUserLocation={Boolean(userLocation)}
+              followsUserLocation={false}
               initialRegion={
-                selectedStation
+                userLocation
                   ? {
-                      latitude: selectedStation.latitude,
-                      longitude: selectedStation.longitude,
-                      latitudeDelta: 2.5,
-                      longitudeDelta: 2.5,
+                      latitude: userLocation.latitude,
+                      longitude: userLocation.longitude,
+                      latitudeDelta: 0.8,
+                      longitudeDelta: 0.8,
                     }
-                  : DEFAULT_REGION
+                  : selectedStation
+                    ? {
+                        latitude: selectedStation.latitude,
+                        longitude: selectedStation.longitude,
+                        latitudeDelta: 2.5,
+                        longitudeDelta: 2.5,
+                      }
+                    : DEFAULT_REGION
               }
             >
               {stations.map((station) => (
@@ -295,13 +404,22 @@ export default function GISMap() {
                     longitude: station.longitude,
                   }}
                   title={station.station_name}
-                  description={`${station.district}, ${station.state}`}
-                  pinColor={
-                    selectedStation?.id === station.id ? "#FF8A00" : "#1E88E5"
-                  }
+                  description={`${station.district}, ${station.state} • Status: ${station.status}`}
+                  pinColor={getMarkerColorByStatus(station.status)}
                   onPress={() => setSelectedStation(station)}
                 />
               ))}
+              {userLocation && (
+                <Marker
+                  coordinate={{
+                    latitude: userLocation.latitude,
+                    longitude: userLocation.longitude,
+                  }}
+                  title="Your current location"
+                  description="Live GPS position"
+                  pinColor="#00695C"
+                />
+              )}
             </MapView>
           </View>
 
@@ -341,6 +459,15 @@ export default function GISMap() {
                 >
                   Status: {selectedStation.status}
                 </AppText>
+                {userLocation && (
+                  <AppText
+                    size={13}
+                    style={{ color: colors.textSecondary, marginTop: 4 }}
+                  >
+                    Distance from you:{" "}
+                    {distanceKm(userLocation, selectedStation).toFixed(1)} km
+                  </AppText>
+                )}
                 <AppText
                   size={13}
                   style={{ color: colors.textSecondary, marginTop: 4 }}
@@ -372,23 +499,62 @@ export default function GISMap() {
             >
               Nearby Stations
             </AppText>
+            {locationError && (
+              <AppText size={13} style={{ color: "#D32F2F", marginBottom: 8 }}>
+                {locationError}
+              </AppText>
+            )}
+            {nearestStation && (
+              <View style={styles.currentStatusCard}>
+                <AppText
+                  size={14}
+                  style={{ fontWeight: "700", color: colors.textPrimary }}
+                >
+                  Current Flood Status Near You
+                </AppText>
+                <AppText
+                  size={13}
+                  style={{ color: colors.textSecondary, marginTop: 4 }}
+                >
+                  {nearestStation.station_name}
+                </AppText>
+                <AppText
+                  size={13}
+                  style={{ color: colors.textSecondary, marginTop: 2 }}
+                >
+                  Status: {nearestStation.status}
+                </AppText>
+                <AppText
+                  size={13}
+                  style={{ color: colors.textSecondary, marginTop: 2 }}
+                >
+                  Distance: {nearestStation.distanceKm.toFixed(1)} km
+                </AppText>
+              </View>
+            )}
             {nearbyStations.length > 0 ? (
-              nearbyStations.map((station) => (
+              nearbyStations.map((station, index) => (
                 <View key={station.id} style={styles.stationRow}>
                   <AppText
                     size={14}
                     style={{ fontWeight: "600", color: colors.textPrimary }}
                   >
-                    {station.station_name}
+                    {index + 1}. {station.station_name}
                   </AppText>
                   <AppText size={12} style={{ color: colors.textSecondary }}>
                     {station.district}, {station.state}
+                  </AppText>
+                  <AppText size={12} style={{ color: colors.textSecondary }}>
+                    Status: {station.status} • {station.distanceKm.toFixed(1)}{" "}
+                    km
                   </AppText>
                 </View>
               ))
             ) : (
               <AppText size={13} style={{ color: colors.textSecondary }}>
-                No nearby stations found.
+                {userLocation
+                  ? "No flood stations found within 5 km."
+                  : "Enable location access to see nearby flood stations."}
               </AppText>
             )}
           </View>
@@ -448,5 +614,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(0,0,0,0.08)",
+  },
+  currentStatusCard: {
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: "rgba(30, 136, 229, 0.08)",
   },
 });
