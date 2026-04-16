@@ -57,7 +57,62 @@ export const DOCUMENT_FIELDS: Record<string, {key: string; label: string}[]> = {
     {key: "address", label: "Address"},
     {key: "postcode", label: "Postcode"},
   ],
+  passport: [
+    {key: "passportNumber", label: "Passport Number"},
+    {key: "fullName", label: "Full Name"},
+    {key: "dateOfBirth", label: "Date of Birth"},
+    {key: "nationality", label: "Nationality"},
+    {key: "gender", label: "Gender"},
+    {key: "issueDate", label: "Issue Date"},
+    {key: "expiryDate", label: "Expiry Date"},
+  ],
+  license: [
+    {key: "licenseNumber", label: "License Number"},
+    {key: "icNumber", label: "IC Number"},
+    {key: "fullName", label: "Full Name"},
+    {key: "categories", label: "License Categories"},
+    {key: "issueDate", label: "Issue Date"},
+    {key: "expiryDate", label: "Expiry Date"},
+  ],
+  birth_cert: [
+    {key: "registrationNumber", label: "Registration Number"},
+    {key: "fullName", label: "Full Name"},
+    {key: "dateOfBirth", label: "Date of Birth"},
+    {key: "placeOfBirth", label: "Place of Birth"},
+    {key: "fatherName", label: "Father's Name"},
+    {key: "motherName", label: "Mother's Name"},
+  ],
+  utility_bill: [
+    {key: "accountNumber", label: "Account Number"},
+    {key: "customerName", label: "Customer Name"},
+    {key: "address", label: "Address"},
+    {key: "billingPeriod", label: "Billing Period"},
+    {key: "amount", label: "Amount"},
+    {key: "dueDate", label: "Due Date"},
+  ],
+  other: [
+    {key: "title", label: "Document Title"},
+    {key: "content", label: "Content Summary"},
+  ],
 };
+
+/**
+ * Maps scanner client types to server document type keys.
+ * Fixes latent bug: scanner sends "identity" but DOCUMENT_FIELDS["identity"] doesn't exist.
+ */
+export const SCANNER_TYPE_MAP: Record<string, string> = {
+  identity: "mykad",
+  passport: "passport",
+  license: "license",
+  birth: "birth_cert",
+  utility: "utility_bill",
+  other: "other",
+};
+
+/** Resolves a client-side document type to a server-side key. */
+export function resolveDocumentType(clientType: string): string {
+  return SCANNER_TYPE_MAP[clientType] || clientType;
+}
 
 /** Returns the list of field keys for a given document type. */
 export function getFieldKeysForDocument(docType: string): string[] {

@@ -1,6 +1,6 @@
 import {ai, CHAT_MODEL} from "../genkit.js";
 import {ChatInput, ChatOutput} from "../schemas.js";
-import {DOCUMENT_FIELDS, describeFieldsForDocument} from "../tools/documentTools.js";
+import {DOCUMENT_FIELDS, describeFieldsForDocument, resolveDocumentType} from "../tools/documentTools.js";
 
 const chatSystemPrompt = `You are a document specialist assistant for OurDigitalID, a Malaysian government digital identity app.
 You are an expert on Malaysian government forms and documents including:
@@ -48,24 +48,149 @@ function buildOcrPrompt(docType: string): string {
   const fieldDesc = describeFieldsForDocument(docType);
   return `You are an OCR extraction assistant. Extract all visible text fields from this scanned document image.
 
-Document type: ${docType}
-Expected fields:
+The user selected document type: ${docType}
+Expected fields for that type:
 ${fieldDesc}
 
-IMPORTANT: Return ONLY a valid JSON object with the field keys as keys and extracted values as strings.
+IMPORTANT: Return ONLY a valid JSON object with:
+1. The field keys as keys and extracted values as strings.
+2. A special key "_detectedType" indicating what type of document you ACTUALLY see in the image.
+   Use one of: mykad, passport, license, birth_cert, utility_bill, other
+
+For example, if the user selected "mykad" but the image shows a passport, set "_detectedType": "passport" and extract passport fields instead.
+
+Rules:
 - If a field is not visible or unreadable, omit it or set it to an empty string.
 - IC Number format: YYMMDD-SS-NNNN
 - Date of Birth format: DD/MM/YYYY
+- All values must be strings.
 - Extract exactly what you see — do not fabricate data.
 - Do NOT include any explanation, markdown, or text outside the JSON object.`;
+}
+
+function buildVerificationPrompt(docType: string, fields: Record<string, string>): string {
+  const rulesMap: Record<string, string> = {
+    mykad: `Malaysian MyKad verification rules:
+- IC Number MUST match format YYMMDD-SS-NNNN (6 digit DOB, dash, 2 digit state code, dash, 4 digits)
+- Valid state codes: 01-16 (01=Johor, 02=Kedah, 03=Kelantan, 04=Melaka, 05=N.Sembilan, 06=Pahang, 07=Penang, 08=Perak, 09=Perlis, 10=Selangor, 11=Terengganu, 12=Sabah, 13=Sarawak, 14=KL, 15=Labuan, 16=Putrajaya)
+- Date of Birth must be consistent with the first 6 digits of the IC number (YYMMDD)
+- Last digit of IC number indicates gender: odd=male, even=female
+- Full name should be present and non-empty
+- Address should be present`,
+    passport: `Malaysian Passport verification rules:
+- Passport number format: 1-2 letters followed by 7-8 digits (e.g., A12345678 or HA1234567)
+- Expiry date must be in the future
+- Issue date must be before expiry date
+- Full name must be present
+- Date of birth must be a valid date
+- Nationality should be "MALAYSIAN" or "MALAYSIA"`,
+    license: `Malaysian Driving License verification rules:
+- License number should be present and non-empty
+- Valid license categories include: B, B1, B2, B Full, C, D, DA, E, E1, E2, F, G, H, I
+- IC number if present should match YYMMDD-SS-NNNN format
+- Expiry date should be in the future
+- Issue date should be before expiry date`,
+    birth_cert: `Malaysian Birth Certificate verification rules:
+- Registration number must be present
+- Full name must be present
+- Date of birth must be a valid date
+- At least one parent name (father or mother) should be present
+- Place of birth should be present`,
+    utility_bill: `Utility Bill verification rules:
+- Account number must be present and non-empty
+- Customer name must be present
+- Address must be present
+- Amount should be in valid format (e.g., "RM 145.50" or numeric)
+- Due date should be a valid date`,
+    other: `General document verification:
+- Document should have a title or identifiable content
+- Check for any obviously inconsistent or malformed data`,
+  };
+
+  const rules = rulesMap[docType] || rulesMap.other;
+
+  return `You are a document verification specialist for Malaysian government documents.
+
+Verify the following extracted fields against the validation rules below.
+
+Document type: ${docType}
+Extracted fields:
+${JSON.stringify(fields, null, 2)}
+
+${rules}
+
+Respond with ONLY a valid JSON object in this exact format:
+{
+  "isValid": true/false,
+  "score": <number 0-100 representing confidence/validity>,
+  "issues": ["list of specific issues found, empty array if none"]
+}
+
+Scoring guide:
+- 90-100: All fields valid, formats correct, cross-references match
+- 70-89: Minor issues (e.g., missing optional field, slight format variation)
+- 50-69: Some fields invalid or missing required data
+- 0-49: Major issues (wrong format, inconsistent data, likely invalid document)
+
+Be specific in issues. For example: "IC number state code 99 is invalid" not just "IC format wrong".
+Do NOT include any text outside the JSON object.`;
 }
 
 export async function handleDocument(input: ChatInput): Promise<ChatOutput> {
   const context = input.context;
 
+  // Verify mode: validate extracted fields
+  if (context?.mode === "verify" && context.existingFields) {
+    const docType = resolveDocumentType(context.documentType || "other");
+
+    const prompt = buildVerificationPrompt(docType, context.existingFields);
+
+    const response = await ai.generate({
+      model: CHAT_MODEL,
+      messages: [
+        {role: "user", content: [{text: prompt}]},
+      ],
+    });
+
+    let verification = {isValid: true, score: 80, issues: [] as string[]};
+    const text = response.text.trim();
+    try {
+      verification = JSON.parse(text);
+    } catch {
+      try {
+        const stripped = text
+          .replace(/^```(?:json)?\s*/im, "")
+          .replace(/\s*```\s*$/m, "")
+          .trim();
+        verification = JSON.parse(stripped);
+      } catch {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            verification = JSON.parse(jsonMatch[0]);
+          } catch {
+            // All parsing failed — return default
+          }
+        }
+      }
+    }
+
+    return {
+      reply: verification.isValid
+        ? "Document verification passed. All fields look valid."
+        : `Document verification found ${verification.issues.length} issue(s).`,
+      agent: "document",
+      verification: {
+        isValid: Boolean(verification.isValid),
+        score: Number(verification.score) || 0,
+        issues: Array.isArray(verification.issues) ? verification.issues : [],
+      },
+    };
+  }
+
   // OCR mode: extract fields from scanned image
   if (context?.mode === "ocr" && context.imageBase64) {
-    const docType = context.documentType || "be_form";
+    const docType = resolveDocumentType(context.documentType || "other");
     const fields = DOCUMENT_FIELDS[docType];
     if (!fields) {
       return {reply: `Unknown document type: ${docType}`, agent: "document"};
@@ -86,29 +211,37 @@ export async function handleDocument(input: ChatInput): Promise<ChatOutput> {
       ],
     });
 
-    let formData: Record<string, string> = {};
+    let rawData: Record<string, unknown> = {};
     const text = response.text.trim();
     try {
-      // Try direct parse first
-      formData = JSON.parse(text);
+      rawData = JSON.parse(text);
     } catch {
       try {
-        // Strip markdown code fences
         const stripped = text
           .replace(/^```(?:json)?\s*/im, "")
           .replace(/\s*```\s*$/m, "")
           .trim();
-        formData = JSON.parse(stripped);
+        rawData = JSON.parse(stripped);
       } catch {
-        // Try to find JSON object anywhere in the text
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
-            formData = JSON.parse(jsonMatch[0]);
+            rawData = JSON.parse(jsonMatch[0]);
           } catch {
             // All parsing attempts failed
           }
         }
+      }
+    }
+
+    // Sanitize: coerce all values to strings (Gemini may return numbers/nulls)
+    const formData: Record<string, string> = {};
+    let detectedDocumentType: string | undefined;
+    for (const [k, v] of Object.entries(rawData)) {
+      if (k === "_detectedType" && v != null) {
+        detectedDocumentType = String(v);
+      } else if (v != null) {
+        formData[k] = String(v);
       }
     }
 
@@ -118,6 +251,7 @@ export async function handleDocument(input: ChatInput): Promise<ChatOutput> {
         reply: "I could see the document but had trouble extracting the fields. Raw response: " + text.substring(0, 200),
         agent: "document",
         formData,
+        detectedDocumentType,
       };
     }
 
@@ -125,6 +259,7 @@ export async function handleDocument(input: ChatInput): Promise<ChatOutput> {
       reply: "I've extracted the fields from your scanned document. Please review and correct any information.",
       agent: "document",
       formData,
+      detectedDocumentType,
     };
   }
 

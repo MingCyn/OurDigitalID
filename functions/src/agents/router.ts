@@ -10,7 +10,7 @@ Respond with ONLY the single word "document" or "general". No other text.`;
 
 export async function routeIntent(input: ChatInput): Promise<"general" | "document"> {
   // Short-circuit: form-fill and OCR modes always go to document agent
-  if (input.context?.mode === "form-fill" || input.context?.mode === "ocr") {
+  if (input.context?.mode === "form-fill" || input.context?.mode === "ocr" || input.context?.mode === "verify") {
     return "document";
   }
 
