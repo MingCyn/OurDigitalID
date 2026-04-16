@@ -7,7 +7,7 @@ export interface ChatMessage {
 }
 
 export interface ChatContext {
-  mode?: "chat" | "form-fill" | "ocr";
+  mode?: "chat" | "form-fill" | "ocr" | "verify";
   documentType?: string;
   existingFields?: Record<string, string>;
   imageBase64?: string;
@@ -18,6 +18,8 @@ export interface ChatResponse {
   agent?: "general" | "document";
   formData?: Record<string, string>;
   action?: { type: string; documentType?: string };
+  verification?: { isValid: boolean; score: number; issues: string[] };
+  detectedDocumentType?: string;
 }
 
 export async function sendChatMessage(

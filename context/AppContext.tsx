@@ -18,6 +18,13 @@ export interface UserProfile {
   mykadPhotoUrl: string;
 }
 
+export interface DocumentVerification {
+  isValid: boolean;
+  score: number;
+  issues: string[];
+  verifiedAt: string;
+}
+
 export interface SavedDocument {
   id: string;
   name: string;
@@ -26,6 +33,7 @@ export interface SavedDocument {
   data: SuggestedData;
   createdAt: string;
   updatedAt: string;
+  verification?: DocumentVerification;
 }
 
 export interface SuggestedData {

@@ -2,12 +2,12 @@ import { AppText } from "@/components/common/AppText";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { s, vs } from "@/constants/layout";
-import { SavedDocument, useAppContext } from "@/context/AppContext";
+import { DocumentVerification, SavedDocument, useAppContext } from "@/context/AppContext";
 import { sendChatMessage } from "@/services/chatService";
 import { auth, db, storage } from "@/services/firebase";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system";
+import { File } from "expo-file-system/next";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -31,6 +31,16 @@ interface DocumentType {
   id: string;
   label: string;
 }
+
+// Maps server-detected types back to client document type IDs
+const DETECTED_TO_CLIENT: Record<string, string> = {
+  mykad: "identity",
+  passport: "passport",
+  license: "license",
+  birth_cert: "birth",
+  utility_bill: "utility",
+  other: "other",
+};
 
 const getDocumentTypes = (t: any): DocumentType[] => [
   { id: "identity", label: t("myKad") || "MyKad / IC" },
@@ -60,6 +70,9 @@ export default function DocumentScannerPage() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedText, setExtractedText] = useState<string>("");
+  const [extractedFields, setExtractedFields] = useState<Record<string, string> | null>(null);
+  const [verification, setVerification] = useState<DocumentVerification | null>(null);
+  const [processingStage, setProcessingStage] = useState<"idle" | "extracting" | "verifying" | "done">("idle");
   const cameraRef = useRef<CameraView>(null);
 
   // Handle camera permissions
@@ -69,103 +82,6 @@ export default function DocumentScannerPage() {
     }
   }, [permission]);
 
-  // OCR Function - Extract text from image
-  const extractTextFromImage = async (imageUri: string): Promise<string> => {
-    try {
-      setIsProcessing(true);
-
-      // Read the image as base64
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: "base64",
-      });
-
-      // Use the same OCR service as create-digital-id.tsx
-      const result = await sendChatMessage(
-        `Extract all text from this ${documentTypes.find((d) => d.id === documentType)?.label || "document"}. Return the extracted text.`,
-        [],
-        { mode: "ocr", documentType: documentType, imageBase64: base64 },
-      );
-
-      const extractedContent =
-        result.reply || result.formData?.extractedText || generateDemoOCRText();
-      return extractedContent;
-    } catch (error) {
-      console.error("OCR Error:", error);
-      Alert.alert(
-        "OCR Error",
-        "Failed to extract text from document. Please try again.",
-      );
-      // Fallback to demo text
-      return generateDemoOCRText();
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Generate demo OCR text for testing
-  const generateDemoOCRText = (): string => {
-    const mockData: { [key: string]: string } = {
-      identity: `MALAYSIA IDENTITY CARD
-NAME: JOHN BIN DOE
-IC NUMBER: 901231-14-5678
-DATE OF BIRTH: 31-DEC-1990
-PLACE OF BIRTH: KUALA LUMPUR
-NATIONALITY: MALAYSIAN
-STATE: SELANGOR
-ADDRESS: 123 JALAN RAJA, 50000 KUALA LUMPUR
-VALIDITY: 2024-2034
-ISSUED: 2024-01-15`,
-
-      passport: `MALAYSIA PASSPORT
-NAME: JOHN BIN DOE
-PASSPORT NUMBER: A12345678
-DATE OF BIRTH: 31-DEC-1990
-PLACE OF BIRTH: KUALA LUMPUR
-NATIONALITY: MALAYSIAN
-GENDER: MALE
-ISSUE DATE: 2022-06-10
-EXPIRY DATE: 2032-06-09
-MRZ: A12345678MYS9012312JOHN`,
-
-      license: `DRIVING LICENCE
-NAME: JOHN BIN DOE
-LICENSE NUMBER: DL123456789
-DATE OF BIRTH: 31-DEC-1990
-ISSUE DATE: 2020-03-15
-EXPIRY DATE: 2030-03-14
-CATEGORIES: B, D
-STATE: SELANGOR
-ADDRESS: 123 JALAN RAJA, 50000 KUALA LUMPUR`,
-
-      birth: `BIRTH CERTIFICATE OF ${new Date().getFullYear()}
-NAME: JOHN BIN DOE
-DATE OF BIRTH: 31-DEC-2020
-PLACE OF BIRTH: HOSPITAL KUALA LUMPUR
-FATHER: ALI BIN IBRAHIM
-MOTHER: FATIMAH BINTI HASSAN
-REGISTRATION NUMBER: BC${Date.now()}`,
-
-      utility: `ELECTRICITY BILL
-ACCOUNT NUMBER: 12345678
-CUSTOMER NAME: JOHN BIN DOE
-ADDRESS: 123 JALAN RAJA, 50000 KUALA LUMPUR
-BILLING PERIOD: 01-MAR-2024 TO 31-MAR-2024
-AMOUNT: RM 145.50
-DUE DATE: 15-APR-2024
-METER READING: 45678 KWH`,
-
-      other: `DOCUMENT SCAN
-Document Type: ${documentTypes.find((d) => d.id === documentType)?.label || "Document"}
-Scanned Date: ${new Date().toLocaleString()}
-Scan Quality: High
-Status: Ready for processing
-
-This is a mock OCR extraction for testing purposes.
-Replace with actual OCR API integration when ready.`,
-    };
-
-    return mockData[documentType] || mockData.other;
-  };
 
   if (!permission) {
     return (
@@ -228,86 +144,173 @@ Replace with actual OCR API integration when ready.`,
       if (photo && photo.uri) {
         setCapturedImage(photo.uri);
         setShowPreview(true);
+        // Auto-trigger extraction + verification
+        handleExtractAndVerify(photo.uri);
       }
     }
   };
 
-  const handleContinue = async () => {
+  // Phase 1: Extract fields via OCR then verify
+  const handleExtractAndVerify = async (imageUri: string) => {
+    setProcessingStage("extracting");
     setIsProcessing(true);
+    setExtractedFields(null);
+    setVerification(null);
 
     try {
-      // Extract text from the captured image
-      const text = await extractTextFromImage(capturedImage!);
-      setExtractedText(text);
+      // Step 1: OCR extraction
+      const file = new File(imageUri);
+      const base64 = await file.base64();
 
-      // Save document to Firestore
-      if (capturedImage && text && auth.currentUser) {
-        const userId = auth.currentUser.uid;
+      const ocrResult = await sendChatMessage(
+        `Extract all text from this ${documentTypes.find((d) => d.id === documentType)?.label || "document"}. Return the extracted text.`,
+        [],
+        { mode: "ocr", documentType: documentType, imageBase64: base64 },
+      );
 
-        // Upload image to Firebase Storage
-        const response = await fetch(capturedImage);
-        const blob = await response.blob();
-        const storageRef = ref(
-          storage,
-          `documents/${userId}/${Date.now()}.jpg`,
-        );
-        await uploadBytes(storageRef, blob);
-        const documentImageUrl = await getDownloadURL(storageRef);
+      const fields = ocrResult.formData || {};
+      const replyText = ocrResult.reply || "";
+      setExtractedFields(fields);
+      setExtractedText(replyText);
 
-        // Save document metadata to Firestore
-        const newDocument = {
-          userId: userId,
-          name: `${documentTypes.find((d) => d.id === documentType)?.label || "Document"} - ${new Date().toLocaleDateString()}`,
-          category: documentType,
-          document: documentImageUrl,
-          data: {
-            extractedText: text,
-            scannedAt: new Date().toISOString(),
-            documentType: documentType,
-          },
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
+      // Check for document type mismatch
+      const detected = ocrResult.detectedDocumentType;
+      const detectedClientType = detected ? DETECTED_TO_CLIENT[detected] || detected : null;
+      let activeDocType = documentType;
 
-        // Add to Firestore
-        const docRef = await addDoc(
-          collection(db, "scanned_documents"),
-          newDocument,
-        );
-        const firestoreDoc: SavedDocument = {
-          id: docRef.id,
-          name: newDocument.name,
-          category: newDocument.category,
-          document: newDocument.document,
-          data: newDocument.data,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+      if (detectedClientType && detectedClientType !== documentType) {
+        const detectedLabel = documentTypes.find((d) => d.id === detectedClientType)?.label || detected;
+        const selectedLabel = documentTypes.find((d) => d.id === documentType)?.label || documentType;
 
-        // Also add to AppContext for immediate display
-        addSavedDocument(firestoreDoc);
+        // Ask user if they want to switch
+        const switchType = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Document Type Mismatch",
+            `You selected "${selectedLabel}" but this looks like a "${detectedLabel}". Switch to ${detectedLabel}?`,
+            [
+              { text: "Keep " + selectedLabel, onPress: () => resolve(false) },
+              { text: "Switch to " + detectedLabel, onPress: () => resolve(true), style: "default" },
+            ],
+          );
+        });
 
-        // Show success and navigate
-        Alert.alert(
-          "Document Saved",
-          "Your document has been scanned and saved successfully.",
-          [
-            {
-              text: "View Saved Documents",
-              onPress: () => {
-                setShowPreview(false);
-                router.replace("/profile" as any);
-              },
-            },
-            {
-              text: "Scan Another",
-              onPress: () => {
-                handleRetake();
-              },
-            },
-          ],
-        );
+        if (switchType) {
+          setDocumentType(detectedClientType);
+          activeDocType = detectedClientType;
+        }
       }
+
+      // Step 2: Verify extracted fields (text-only, no image needed)
+      if (Object.keys(fields).length > 0) {
+        setProcessingStage("verifying");
+
+        const verifyResult = await sendChatMessage(
+          "Verify the extracted document fields.",
+          [],
+          { mode: "verify", documentType: activeDocType, existingFields: fields },
+        );
+
+        if (verifyResult.verification) {
+          setVerification({
+            ...verifyResult.verification,
+            verifiedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      setProcessingStage("done");
+    } catch (error) {
+      console.error("Extract/verify error:", error);
+      setProcessingStage("done");
+      Alert.alert("Error", "Failed to process document. You can still save or retake.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Phase 2: Save document to Firestore
+  const handleSaveDocument = async () => {
+    if (!capturedImage || !auth.currentUser) {
+      Alert.alert("Error", "Please sign in to save documents.");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const userId = auth.currentUser.uid;
+
+      // Upload image to Firebase Storage
+      const response = await fetch(capturedImage);
+      const blob = await response.blob();
+      const storageRef = ref(
+        storage,
+        `documents/${userId}/${Date.now()}.jpg`,
+      );
+      await uploadBytes(storageRef, blob);
+      const documentImageUrl = await getDownloadURL(storageRef);
+
+      // Build data payload with structured fields
+      const docData: Record<string, string | undefined> = {
+        ...(extractedFields || {}),
+        scannedAt: new Date().toISOString(),
+        documentType: documentType,
+      };
+
+      // Save document metadata to Firestore
+      const newDocument: any = {
+        userId: userId,
+        name: `${documentTypes.find((d) => d.id === documentType)?.label || "Document"} - ${new Date().toLocaleDateString()}`,
+        category: documentType,
+        document: documentImageUrl,
+        data: docData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      // Include verification if available
+      if (verification) {
+        newDocument.verification = verification;
+      }
+
+      // Add to Firestore
+      const docRef = await addDoc(
+        collection(db, "scanned_documents"),
+        newDocument,
+      );
+
+      const firestoreDoc: SavedDocument = {
+        id: docRef.id,
+        name: newDocument.name,
+        category: newDocument.category,
+        document: newDocument.document,
+        data: docData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        verification: verification || undefined,
+      };
+
+      // Also add to AppContext for immediate display
+      addSavedDocument(firestoreDoc);
+
+      Alert.alert(
+        "Document Saved",
+        "Your document has been scanned, verified, and saved successfully.",
+        [
+          {
+            text: "View Saved Documents",
+            onPress: () => {
+              setShowPreview(false);
+              router.replace("/profile" as any);
+            },
+          },
+          {
+            text: "Scan Another",
+            onPress: () => {
+              handleRetake();
+            },
+          },
+        ],
+      );
     } catch (error) {
       console.error("Error saving document:", error);
       Alert.alert("Error", "Failed to save document. Please try again.");
@@ -320,6 +323,22 @@ Replace with actual OCR API integration when ready.`,
     setCapturedImage(null);
     setShowPreview(false);
     setExtractedText("");
+    setExtractedFields(null);
+    setVerification(null);
+    setProcessingStage("idle");
+  };
+
+  // Verification badge helpers
+  const getVerificationColor = (score: number) => {
+    if (score >= 80) return "#4CAF50";
+    if (score >= 50) return "#FF9800";
+    return "#F44336";
+  };
+
+  const getVerificationLabel = (score: number) => {
+    if (score >= 80) return "Verified";
+    if (score >= 50) return "Needs Review";
+    return "Issues Found";
   };
 
   const selectedDocumentLabel =
@@ -669,7 +688,8 @@ Replace with actual OCR API integration when ready.`,
               </View>
             )}
 
-            {isProcessing && (
+            {/* Processing indicator */}
+            {(processingStage === "extracting" || processingStage === "verifying") && (
               <View style={styles.processingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <AppText
@@ -680,12 +700,15 @@ Replace with actual OCR API integration when ready.`,
                     textAlign: "center",
                   }}
                 >
-                  Extracting text from document...
+                  {processingStage === "extracting"
+                    ? "Extracting text from document..."
+                    : "Verifying document fields..."}
                 </AppText>
               </View>
             )}
 
-            {extractedText && !isProcessing && (
+            {/* Extracted Fields */}
+            {extractedFields && Object.keys(extractedFields).length > 0 && processingStage === "done" && (
               <View style={styles.extractedTextContainer}>
                 <View
                   style={[
@@ -701,17 +724,82 @@ Replace with actual OCR API integration when ready.`,
                       marginBottom: vs(8),
                     }}
                   >
-                    EXTRACTED TEXT
+                    EXTRACTED FIELDS
                   </AppText>
-                  <AppText
-                    size={13}
-                    style={{
-                      color: colors.textPrimary,
-                      lineHeight: 18,
-                    }}
-                  >
-                    {extractedText}
-                  </AppText>
+                  {Object.entries(extractedFields).map(([key, value]) => (
+                    <View key={key} style={styles.fieldRow}>
+                      <AppText
+                        size={12}
+                        style={{ color: colors.textSecondary, flex: 0.4 }}
+                      >
+                        {key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase())}
+                      </AppText>
+                      <AppText
+                        size={13}
+                        style={{ color: colors.textPrimary, flex: 0.6, fontWeight: "500" }}
+                      >
+                        {value || "—"}
+                      </AppText>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Verification Badge */}
+            {verification && processingStage === "done" && (
+              <View style={{ paddingHorizontal: s(16), marginBottom: vs(16) }}>
+                <View
+                  style={[
+                    styles.verificationBadge,
+                    { backgroundColor: getVerificationColor(verification.score) + "15" },
+                  ]}
+                >
+                  <View style={styles.verificationHeader}>
+                    <View
+                      style={[
+                        styles.verificationDot,
+                        { backgroundColor: getVerificationColor(verification.score) },
+                      ]}
+                    />
+                    <AppText
+                      size={14}
+                      style={{
+                        fontWeight: "700",
+                        color: getVerificationColor(verification.score),
+                        marginLeft: s(8),
+                      }}
+                    >
+                      {getVerificationLabel(verification.score)}
+                    </AppText>
+                    <AppText
+                      size={13}
+                      style={{
+                        color: colors.textSecondary,
+                        marginLeft: "auto",
+                      }}
+                    >
+                      Score: {verification.score}/100
+                    </AppText>
+                  </View>
+
+                  {verification.issues.length > 0 && (
+                    <View style={{ marginTop: vs(8) }}>
+                      {verification.issues.map((issue, idx) => (
+                        <View key={idx} style={styles.issueRow}>
+                          <AppText size={11} style={{ color: "#F44336", marginRight: s(6) }}>
+                            !
+                          </AppText>
+                          <AppText
+                            size={12}
+                            style={{ color: colors.textSecondary, flex: 1 }}
+                          >
+                            {issue}
+                          </AppText>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
               </View>
             )}
@@ -765,9 +853,17 @@ Replace with actual OCR API integration when ready.`,
             </TouchableOpacity>
 
             <PrimaryButton
-              label={isProcessing ? "Processing..." : "Save & Continue"}
-              onPress={handleContinue}
-              disabled={isProcessing}
+              label={
+                isProcessing
+                  ? processingStage === "extracting"
+                    ? "Extracting..."
+                    : processingStage === "verifying"
+                    ? "Verifying..."
+                    : "Saving..."
+                  : "Save Document"
+              }
+              onPress={handleSaveDocument}
+              disabled={isProcessing || processingStage !== "done"}
             />
           </View>
         </View>
@@ -1033,6 +1129,29 @@ const styles = StyleSheet.create({
   extractedTextBox: {
     borderRadius: 12,
     padding: s(14),
-    maxHeight: 200,
+  },
+  fieldRow: {
+    flexDirection: "row",
+    paddingVertical: vs(4),
+    alignItems: "flex-start",
+  },
+  verificationBadge: {
+    borderRadius: 12,
+    padding: s(14),
+  },
+  verificationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  verificationDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  issueRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: vs(2),
+    paddingLeft: s(4),
   },
 });

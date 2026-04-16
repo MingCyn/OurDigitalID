@@ -1,8 +1,5 @@
 {
   "projects": {
-    "default": "ourdigitalid-acebf",
-    "firebase deploy --only functions": "ourdigitalid-acebf"
-  },
-  "targets": {},
-  "etags": {}
+    "default": "ourdigitalid-acebf"
+  }
 }
