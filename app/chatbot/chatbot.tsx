@@ -63,10 +63,27 @@ const QUICK_ACTIONS = [
 const ANIM_DURATION = 500;
 const EASE = Easing.bezier(0.4, 0, 0.2, 1);
 
+/** Strip common markdown formatting so bot responses render as clean plain text. */
+function stripMarkdown(text: string): string {
+  return text
+    // Remove bold/italic markers: **text**, *text*, __text__, _text_
+    .replace(/\*{1,3}(.*?)\*{1,3}/g, "$1")
+    .replace(/_{1,3}(.*?)_{1,3}/g, "$1")
+    // Remove heading markers: ### heading
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove inline code backticks: `code`
+    .replace(/`([^`]+)`/g, "$1")
+    // Remove link syntax: [text](url) → text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    // Clean up excess whitespace
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export default function ChatbotScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, elderlyMode, addSavedDocument, userProfile } = useAppContext();
+  const { colors, elderlyMode, addSavedDocument, userProfile, language } = useAppContext();
   const flatListRef = useRef<FlatList>(null);
 
   // Elderly mode scaling
@@ -84,7 +101,71 @@ export default function ChatbotScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [chatStarted, setChatStarted] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ uri: string; base64: string } | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [speechAvailable, setSpeechAvailable] = useState(true);
+  const speechModuleRef = useRef<any>(null);
   const chatHistory = useRef<ChatMessage[]>([]);
+
+  // Lazy-load expo-speech-recognition and wire up event listeners
+  React.useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    (async () => {
+      try {
+        const mod = await import("expo-speech-recognition");
+        speechModuleRef.current = mod.ExpoSpeechRecognitionModule;
+
+        const resultSub = mod.ExpoSpeechRecognitionModule.addListener("result", (event: any) => {
+          const transcript = event.results?.[0]?.transcript ?? "";
+          if (transcript) setInputText(transcript);
+          if (event.isFinal) setIsListening(false);
+        });
+        const endSub = mod.ExpoSpeechRecognitionModule.addListener("end", () => {
+          setIsListening(false);
+        });
+        const errSub = mod.ExpoSpeechRecognitionModule.addListener("error", (event: any) => {
+          console.warn("Speech recognition error:", event.error);
+          setIsListening(false);
+        });
+
+        cleanup = () => {
+          resultSub.remove();
+          endSub.remove();
+          errSub.remove();
+        };
+      } catch {
+        console.warn("expo-speech-recognition not available (native rebuild required)");
+        setSpeechAvailable(false);
+      }
+    })();
+    return () => cleanup?.();
+  }, []);
+
+  const toggleVoiceInput = useCallback(async () => {
+    const mod = speechModuleRef.current;
+    if (!mod) {
+      Alert.alert("Not Available", "Voice input requires a native app rebuild.");
+      return;
+    }
+
+    if (isListening) {
+      mod.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const { granted } = await mod.requestPermissionsAsync();
+    if (!granted) {
+      Alert.alert("Permission Required", "Microphone access is needed for voice input.");
+      return;
+    }
+
+    setIsListening(true);
+    mod.start({
+      lang: language === "ms" ? "ms-MY" : language === "cn" ? "zh-CN" : "en-US",
+      interimResults: true,
+      continuous: false,
+    });
+  }, [isListening, language]);
 
   // Animations — input slides from center to bottom (normal mode only)
   const inputOffset = elderlyMode ? 0 : -(SCREEN_HEIGHT * 0.22);
@@ -232,12 +313,13 @@ export default function ChatbotScreen() {
         ? { mode: "ocr" as const, imageBase64 }
         : undefined;
       const response = await sendChatMessage(userText, chatHistory.current, context);
-      chatHistory.current.push({ role: "model", content: response.reply });
+      const cleanReply = stripMarkdown(response.reply);
+      chatHistory.current.push({ role: "model", content: cleanReply });
       // Small delay before showing response for a natural feel
       await new Promise((r) => setTimeout(r, 800));
       setMessages((prev) => [...prev, {
         id: `bot-${Date.now()}`,
-        text: response.reply,
+        text: cleanReply,
         sender: "bot",
         agent: response.agent,
         action: response.action,
@@ -575,6 +657,28 @@ export default function ChatbotScreen() {
             returnKeyType="send"
             editable={!isTyping}
           />
+          <Pressable
+            onPress={toggleVoiceInput}
+            disabled={isTyping}
+            style={({ pressed }) => [
+              styles.voiceBtn,
+              {
+                width: sendBtnSize,
+                height: sendBtnSize,
+                borderRadius: sendBtnSize / 2,
+                backgroundColor: isListening
+                  ? colors.error
+                  : "transparent",
+                transform: [{ scale: pressed ? 0.9 : 1 }],
+              },
+            ]}
+          >
+            <AppIcon
+              name={isListening ? "waveform" : "mic.fill"}
+              size={18}
+              color={isListening ? "#FFF" : colors.primary}
+            />
+          </Pressable>
           <Pressable
             onPress={() => sendMessage()}
             disabled={!canSend}
@@ -1083,6 +1187,12 @@ const styles = StyleSheet.create({
     flex: 1,
     maxHeight: 120,
     paddingVertical: Platform.OS === "ios" ? vs(6) : vs(8),
+  },
+  voiceBtn: {
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    marginBottom: Platform.OS === "ios" ? vs(2) : vs(4),
   },
   sendBtn: {
     justifyContent: "center",

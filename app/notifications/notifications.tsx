@@ -1,11 +1,11 @@
 import { AppIcon } from "@/components/common/AppIcon";
 import { AppText } from "@/components/common/AppText";
 import type { AppNotification } from "@/context/AppContext";
-import { useAppContext } from "@/context/AppContext";
+import { formatRelativeTime, useAppContext } from "@/context/AppContext";
 import { useFadeIn, useFadeInUp, useSlideInLeft } from "@/hooks/useAnimations";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -85,7 +85,36 @@ export default function NotificationsScreen() {
 
   const [activeTab, setActiveTab] = useState<TabType>("Today");
 
-  const displayedNotifications = activeTab === "Today" ? notifications : [];
+  // Bucket notifications by timestamp into Today / This Week / Earlier
+  const { today, thisWeek, earlier } = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfWeek = startOfToday - 6 * 86_400_000; // last 7 days
+
+    const buckets: { today: AppNotification[]; thisWeek: AppNotification[]; earlier: AppNotification[] } = {
+      today: [],
+      thisWeek: [],
+      earlier: [],
+    };
+
+    for (const n of notifications) {
+      // Recompute relative time display from timestamp (fallback to now if missing)
+      const stamp = n.timestamp || new Date().toISOString();
+      const updated = { ...n, time: formatRelativeTime(stamp) };
+      const ts = new Date(stamp).getTime();
+      if (ts >= startOfToday) buckets.today.push(updated);
+      else if (ts >= startOfWeek) buckets.thisWeek.push(updated);
+      else buckets.earlier.push(updated);
+    }
+    return buckets;
+  }, [notifications]);
+
+  const displayedNotifications =
+    activeTab === "Today" ? today : activeTab === "This Week" ? thisWeek : earlier;
+
+  const todayCount = today.length;
+  const weekCount = thisWeek.length;
+  const earlierCount = earlier.length;
 
   // Header animation
   const headerAnim = useFadeIn(0, 300);
@@ -112,6 +141,22 @@ export default function NotificationsScreen() {
       iconName = "doc.plaintext.fill";
       bgColor = "#F3E5F5";
       iconColor = "#9C27B0";
+    } else if (item.type === "weather" || item.type === "flood") {
+      iconName = "cloud.rain.fill";
+      bgColor = "#E0F2F1";
+      iconColor = "#00796B";
+    } else if (item.type === "earthquake") {
+      iconName = "waveform.path.ecg";
+      bgColor = "#FFF3E0";
+      iconColor = "#E65100";
+    } else if (item.type === "queue") {
+      iconName = "person.2.fill";
+      bgColor = "#E8EAF6";
+      iconColor = "#3F51B5";
+    } else if (item.type === "document") {
+      iconName = "doc.text.fill";
+      bgColor = "#FFF8E1";
+      iconColor = "#F9A825";
     }
 
     return (
@@ -176,7 +221,11 @@ export default function NotificationsScreen() {
                     isActive && { color: colors.textPrimary },
                   ]}
                 >
-                  {tab === "Today" ? `Today (${notifications.length})` : tab}
+                  {tab === "Today"
+                    ? `Today (${todayCount})`
+                    : tab === "This Week"
+                      ? `This Week (${weekCount})`
+                      : `Earlier (${earlierCount})`}
                 </AppText>
               </TouchableOpacity>
             );

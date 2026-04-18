@@ -22,6 +22,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import Animated from "react-native-reanimated";
@@ -172,6 +173,19 @@ export default function EmailScreen() {
             style={{ marginTop: vs(16) }}
           />
         )}
+
+        <TouchableOpacity
+          onPress={() => router.push("/auth/create-digital-id")}
+          activeOpacity={0.7}
+          style={{ marginTop: vs(20), paddingVertical: vs(8) }}
+        >
+          <Text style={styles.createLink}>
+            Don't have a Digital ID?{" "}
+            <Text style={{ color: AppColors.primary, fontWeight: "600" }}>
+              Create one
+            </Text>
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <VersionFooter />
@@ -197,4 +211,9 @@ const styles = StyleSheet.create({
   },
   iconWrapper: { marginBottom: vs(16) },
   icon: { fontSize: fs(64) },
+  createLink: {
+    fontSize: fs(14),
+    color: AppColors.textSecondary,
+    textAlign: "center",
+  },
 });

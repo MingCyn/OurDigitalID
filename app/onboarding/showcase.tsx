@@ -1,11 +1,11 @@
-import { BackButton } from '@/components/ui/BackButton';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { VersionFooter } from '@/components/ui/VersionFooter';
 import { s, vs } from '@/constants/layout';
 import { useFadeInUp, useScaleIn, useFadeIn, useSlideInLeft, stagger } from '@/hooks/useAnimations';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Image,
   StatusBar,
@@ -23,6 +23,11 @@ export default function ShowcaseScreen() {
   const router = useRouter();
   const { colors } = useAppContext();
   const { t } = useTranslation();
+
+  // Mark onboarding as complete so returning users skip to this page
+  useEffect(() => {
+    AsyncStorage.setItem('onboarding_complete', 'true').catch(() => {});
+  }, []);
 
   const FEATURES = [
     t('showcaseFeature1'),
@@ -45,8 +50,6 @@ export default function ShowcaseScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-
-      <BackButton />
 
       <View style={styles.container}>
         <Animated.View style={welcomeAnim}>

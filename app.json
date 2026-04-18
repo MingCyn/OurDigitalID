@@ -4,7 +4,7 @@
     "slug": "OurDigitalID",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo_whitebg.png",
     "scheme": "ourdigitalid",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -15,6 +15,7 @@
       }
     },
     "android": {
+      "package": "com.anonymous.OurDigitalID",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -28,8 +29,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.OurDigitalID"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -40,7 +40,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/logo_whitebg.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -48,11 +48,25 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo_whitebg.png",
+          "color": "#1A73E8"
+        }
+      ],
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "63bb655b-2922-4c5e-81b4-e7a0bca94968"
+      }
     }
   }
 }

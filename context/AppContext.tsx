@@ -46,12 +46,14 @@ export interface SuggestedData {
 
 export interface AppNotification {
   id: string;
-  type: "user" | "system" | "success" | "alert";
+  type: "user" | "system" | "success" | "alert" | "weather" | "queue" | "document" | "flood" | "earthquake";
   userName?: string;
   message: string;
   isRead: boolean;
   time: string;
+  timestamp: string; // ISO 8601 string for sorting/grouping
   avatarUrl?: string;
+  screen?: string; // deep-link target (e.g. "/gis/gis", "/service/service-page")
 }
 
 type AppContextType = {
@@ -84,13 +86,31 @@ type AppContextType = {
   // Notifications
   notifications: AppNotification[];
   addNotification: (
-    notification: Omit<AppNotification, "id" | "isRead" | "time"> & {
+    notification: Omit<AppNotification, "id" | "isRead" | "time" | "timestamp"> & {
       isRead?: boolean;
       time?: string;
+      timestamp?: string;
     },
   ) => void;
   markNotificationAsRead: (id: string) => void;
 };
+
+/** Compute a human-readable relative time string from an ISO timestamp. */
+export function formatRelativeTime(isoString: string): string {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffMs = now - then;
+
+  if (diffMs < 60_000) return "Just now";
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(isoString).toLocaleDateString();
+}
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -126,52 +146,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
     return () => { cancelled = true; };
   }, [userProfile?.uid]);
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: "1",
-      type: "success",
-      message: "Your MyKad renewal application has been approved",
-      isRead: true,
-      time: "Just now",
-    },
-    {
-      id: "2",
-      type: "alert",
-      message: "Alert: Maintenance on government portal from 2 AM - 4 AM",
-      isRead: false,
-      time: "30m ago",
-    },
-    {
-      id: "3",
-      type: "system",
-      message: "New driver's license batch processing available. Apply now.",
-      isRead: false,
-      time: "1h ago",
-    },
-    {
-      id: "4",
-      type: "success",
-      message:
-        "Your passport application status: Ready for collection at JPJ office",
-      isRead: true,
-      time: "2h ago",
-    },
-    {
-      id: "5",
-      type: "alert",
-      message:
-        "Road closure alert: Jalan Raja Chulan closed tomorrow 9 AM - 5 PM",
-      isRead: false,
-      time: "3h ago",
-    },
-    {
-      id: "6",
-      type: "system",
-      message: "Reminder: Your vehicle road tax expires on 30 March 2026",
-      isRead: false,
-      time: "4h ago",
-    },
-  ]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // [REMOVED] theme state — no longer needed
   // highContrast = dark mode
@@ -205,11 +180,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addNotification: AppContextType["addNotification"] = (notification) => {
+    const now = new Date();
+    const ts = notification.timestamp ?? now.toISOString();
     setNotifications((prev) => [
       {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         isRead: notification.isRead ?? false,
-        time: notification.time ?? "Just now",
+        time: notification.time ?? formatRelativeTime(ts),
+        timestamp: ts,
         ...notification,
       },
       ...prev,
